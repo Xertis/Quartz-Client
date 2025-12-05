@@ -1,3 +1,4 @@
+app.reset_content()
 app.config_packs({ "quartz" })
 app.load_content()
 
