@@ -1,4 +1,5 @@
 local protocol = require "multiplayer/protocol-kernel/protocol"
+local timer = require "lib/timer"
 
 local module = {}
 local entities_uids = {}
@@ -13,6 +14,14 @@ local function vec_zero()
 end
 
 local original_spawn = entities.spawn
+
+local function lerp_rotation(a, b, d)
+    local q1 = quat.from_mat4(a)
+    local q2 = quat.from_mat4(b)
+    local q_result = quat.slerp(q1, q2, d)
+
+    return mat4.from_quat(q_result)
+end
 
 entities.spawn = function(name, ...)
     local source_path = debug.getinfo(2, "S").source
@@ -135,6 +144,18 @@ local function update(cuid, def, dirty)
     if std_fields.tsf_rot then transform:set_rot(std_fields.tsf_rot) end
     if std_fields.tsf_scale then transform:set_scale(std_fields.tsf_scale) end
     if std_fields.body_size then rigidbody:set_size(std_fields.body_size) end
+
+    if std_fields.tsf_rot then
+        timer.add_task(
+
+        function (t, base_rot)
+            transform:set_rot(lerp_rotation(base_rot, std_fields.tsf_rot, t))
+            return t+0.1, base_rot
+        end,
+
+        0.5, 0,
+        0, transform:get_rot())
+    end
 end
 
 function module.__get_uids__()

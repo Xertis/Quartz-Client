@@ -1,9 +1,21 @@
-local protocol = require "multiplayer/protocol-kernel/protocol"
-local sandbox = start_require "multiplayer/client/sandbox"
-local utils = require "lib/utils"
+
+local protocol = nil
+local sandbox = nil
+local utils = nil
+local timer = nil
 
 local buffer = {}
 local loaded_chunks = {}
+
+function on_world_open()
+    protocol = require "multiplayer/protocol-kernel/protocol"
+    sandbox = start_require "multiplayer/client/sandbox"
+    utils = require "lib/utils"
+    timer = require "lib/timer"
+
+    require "init/cmd"
+end
+
 function on_chunk_present(x, z)
     if #buffer < (core.get_setting("chunks.load-distance")^2) / 2 then
         if not loaded_chunks[x .. '/' .. z] then
@@ -24,6 +36,7 @@ end
 
 function on_world_tick()
     utils.__tick()
+    timer.__tick()
 
     if CLIENT_PLAYER then
         CLIENT_PLAYER:tick()
@@ -70,8 +83,4 @@ function on_block_interact(blockid, x, y, z, playerid)
 
     x, y, z = block.seek_origin(x, y, z)
     sandbox.on_interact(blockid, x, y, z)
-end
-
-function on_world_open()
-    require "init/cmd"
 end
