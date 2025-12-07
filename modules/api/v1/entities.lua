@@ -15,14 +15,6 @@ end
 
 local original_spawn = entities.spawn
 
-local function lerp_rotation(a, b, d)
-    local q1 = quat.from_mat4(a)
-    local q2 = quat.from_mat4(b)
-    local q_result = quat.slerp(q1, q2, d)
-
-    return mat4.from_quat(q_result)
-end
-
 entities.spawn = function(name, ...)
     local source_path = debug.getinfo(2, "S").source
     local prefix = parse_path(source_path) or ""
@@ -112,6 +104,7 @@ local function update(cuid, def, dirty)
     end
 
     local skeleton = entity.skeleton
+
     if skeleton then
         for key, val in pairs(dirty.textures or {}) do
             skeleton:set_texture(key, val)
@@ -125,37 +118,16 @@ local function update(cuid, def, dirty)
     local transform = entity.transform
     local rigidbody = entity.rigidbody
 
-    if std_fields.tsf_pos then
-        local current_pos = transform:get_pos()
-        local target_pos = std_fields.tsf_pos
-        local direction = vec3.sub(target_pos, current_pos)
-        local distance = vec3.length(direction)
-
-        if distance > 10 or distance < 0.01 then
-            transform:set_pos(target_pos)
-            rigidbody:set_vel(vec_zero())
-        elseif rigidbody then
-            local time_to_reach = 0.1
-            local velocity = vec3.mul(vec3.normalize(direction), distance / time_to_reach)
-            rigidbody:set_vel(velocity)
-        end
+    local controller = nil
+    if entity:has_component("quartz:controller") then
+        controller = entity:require_component("quartz:controller")
     end
 
-    if std_fields.tsf_rot then transform:set_rot(std_fields.tsf_rot) end
-    if std_fields.tsf_scale then transform:set_scale(std_fields.tsf_scale) end
+    if std_fields.tsf_pos and controller then controller.set_pos(std_fields.tsf_pos) end
+    if std_fields.tsf_rot and controller then controller.set_rot(std_fields.tsf_rot) end
+
+    if std_fields.tsf_size then transform:set_size(std_fields.tsf_size) end
     if std_fields.body_size then rigidbody:set_size(std_fields.body_size) end
-
-    if std_fields.tsf_rot then
-        timer.add_task(
-
-        function (t, base_rot)
-            transform:set_rot(lerp_rotation(base_rot, std_fields.tsf_rot, t))
-            return t+0.1, base_rot
-        end,
-
-        0.5, 0,
-        0, transform:get_rot())
-    end
 end
 
 function module.__get_uids__()
@@ -182,6 +154,13 @@ function module.__emit__(uid, def, dirty)
         if new_entity.rigidbody then
             new_entity.rigidbody:set_gravity_scale(vec_zero())
         end
+
+        local chunk_env = {entity = new_entity}
+        setmetatable(chunk_env, {__index = _G})
+
+        local chunk = __load_script("quartz:modules/components/controller.lua", true, chunk_env)
+
+        new_entity.components["quartz:controller"] = chunk
     end
 
     local cuid = entities_uids[uid]

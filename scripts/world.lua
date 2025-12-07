@@ -36,7 +36,6 @@ end
 
 function on_world_tick()
     utils.__tick()
-    timer.__tick()
 
     if CLIENT_PLAYER then
         CLIENT_PLAYER:tick()
