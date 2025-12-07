@@ -38,13 +38,12 @@ _G["leave_to_menu"] = function (reason)
         app.load_content()
 
         _G["external_app"] = protect_app
-        require "quartz:init/quartz"
-
-        print("меняем page")
-        menu.page = "quartz_connection"
-        local document = Document.new("quartz:pages/quartz_connection")
-        document.info.text = reason or "Unexpected disconnection"
+        require "quartz:init/quartz"(function ()
+            menu.page = "quartz_connection"
+            local document = Document.new("quartz:pages/quartz_connection")
+            document.info.text = reason or "Unexpected disconnection"
+        end)
     end
 end
 
-require "quartz:init/quartz"
+require "quartz:init/quartz"()

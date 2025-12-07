@@ -1,22 +1,28 @@
-require "quartz:constants"
-require "quartz:globals"
-require "quartz:std/stdboot"
-require "quartz:init/client"
-local Client = require "quartz:multiplayer/client/client"
+return function(after_init)
+    after_init = after_init or function () end
 
-local client = Client.new()
+    require "quartz:constants"
+    require "quartz:globals"
+    require "quartz:std/stdboot"
+    require "quartz:init/client"
+    local Client = require "quartz:multiplayer/client/client"
 
-menu.page = "servers"
+    local client = Client.new()
 
-_G["/$p"] = table.copy(package.loaded)
+    menu.page = "servers"
 
-local function main()
-    while true do
-        client:tick()
-        external_app.tick()
+    _G["/$p"] = table.copy(package.loaded)
+
+    after_init()
+
+    local function main()
+        while true do
+            client:tick()
+            external_app.tick()
+        end
     end
-end
 
-xpcall(main, function (error)
-    print(debug.traceback(error, 2))
-end)
+    xpcall(main, function (error)
+        print(debug.traceback(error, 2))
+    end)
+end
