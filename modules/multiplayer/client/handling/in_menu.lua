@@ -49,9 +49,10 @@ handlers[protocol.ServerMsg.PacksList] = function (server, packet)
 
     external_app.reset_content()
     external_app.config_packs(CONTENT_PACKS)
+
     external_app.load_content()
 
-    events.handlers = events_handlers
+    events.handlers = table.merge(events_handlers, events.handlers)
 
     for i, pack in ipairs(packs) do
         table.insert(hashes, pack)
@@ -68,6 +69,9 @@ handlers[protocol.ServerMsg.JoinSuccess] = function (server, packet)
     server.state = protocol.States.Active
 
     SERVER = server
+
+    external_app.reset_content()
+    external_app.config_packs(CONTENT_PACKS)
 
     external_app.new_world("", "41530140565755", PACK_ID .. ":void", packet.entity_id)
     CLIENT.pid = packet.entity_id
