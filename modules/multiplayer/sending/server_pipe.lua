@@ -47,8 +47,9 @@ end)
 ServerPipe:add_middleware(function(server)
     if CLIENT_PLAYER.changed_flags.rot then
         server:push_packet(protocol.ClientMsg.PlayerRotation, {
-            yaw = CLIENT_PLAYER.rot.yaw,
-            pitch = CLIENT_PLAYER.rot.pitch
+            x = CLIENT_PLAYER.rot.x,
+            y = CLIENT_PLAYER.rot.y,
+            z = CLIENT_PLAYER.rot.z
         })
         CLIENT_PLAYER.changed_flags.rot = false
     end

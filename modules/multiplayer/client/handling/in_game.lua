@@ -53,12 +53,12 @@ end
 
 handlers[protocol.ServerMsg.BlockChanged] = function (server, packet)
     local pid = packet.pid
-    local block = packet.block
-    local block_pos = block.pos
+    local block_data = packet.block
+    local block_pos = block_data.pos
     if pid == 0 then pid = -1 end
 
     local old_id = block.get(block_pos.x, block_pos.y, block_pos.z)
-    local new_id = block.id
+    local new_id = block_data.id
 
     --[[TODO: Проверка эта нужна, 
         но хз как она повлияет на код, по идее если чанк не загружен, то он его загрузит
@@ -71,11 +71,11 @@ handlers[protocol.ServerMsg.BlockChanged] = function (server, packet)
             block.destruct(block_pos.x, block_pos.y, block_pos.z, pid)
             return
         elseif old_id == 0 and new_id ~= 0 then
-            block.place(block_pos.x, block_pos.y, block_pos.z, new_id, block.state, pid)
+            block.place(block_pos.x, block_pos.y, block_pos.z, new_id, block_data.state, pid)
             return
         end
     end
-    block.set(block_pos.x, block_pos.y, block_pos.z, new_id, block.state, pid)
+    block.set(block_pos.x, block_pos.y, block_pos.z, new_id, block_data.state, pid)
 end
 
 handlers[protocol.ServerMsg.TimeUpdate] = function (server, packet)
@@ -89,7 +89,7 @@ handlers[protocol.ServerMsg.ChatMessage] = function (server, packet)
     console.chat(packet.message)
 end
 
-handlers[protocol.ServerMsg.SynchronizePlayerPosition] = function (server, packet)
+handlers[protocol.ServerMsg.SynchronizePlayer] = function (server, packet)
     local player_data = packet.data
 
     CLIENT_PLAYER:set_pos(player_data.pos, false)
@@ -184,6 +184,15 @@ end
 handlers[protocol.ServerMsg.PlayerHandSlot] = function (server, packet)
     player.set_selected_slot(hud.get_player(), packet.slot)
     CACHED_DATA.slot = packet.slot
+end
+
+handlers[protocol.ServerMsg.PlayerUsername] = function (server, packet)
+    local player_obj = packet.pid ~= CLIENT_PLAYER.pid and PLAYER_LIST[packet.pid] or CLIENT_PLAYER
+
+    debug.print(packet)
+
+    player.set_name(packet.pid, packet.username)
+    player_obj.name = packet.username
 end
 
 handlers[ protocol.ServerMsg.PackEvent ] = function (server, packet)

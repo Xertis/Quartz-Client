@@ -72,7 +72,7 @@ ClientPipe:add_middleware(function(server)
 end)
 
 ClientPipe:add_middleware(function(server)
-    if server.state == 3 then
+    if server.state == protocol.States.Active then
         server_pipe:process(server)
     end
 

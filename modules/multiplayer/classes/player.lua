@@ -20,7 +20,7 @@ function Player.new(pid, name, pos, rot, cheats)
     self.slot = 0
     self.region = {x = 0, z = 0}
     self.pos = pos or {x = 0, y = -10, z = 0}
-    self.rot = rot or {yaw = 0, pitch = 0}
+    self.rot = rot or {x = 0, y = 0, z = 0}
     self.cheats = cheats or {noclip = false, flight = false}
     self.active = true
     self.hand_item = 0
@@ -63,7 +63,7 @@ function Player:apply_pending_updates()
 
     if self.pending_updates.rot then
         local rot = self.pending_updates.rot
-        player.set_rot(self.pid, rot.yaw, rot.pitch, 0)
+        player.set_rot(self.pid, rot.x, rot.y, rot.z)
         self.pending_updates.rot = nil
         self.changed_flags.rot = true
     end
@@ -107,10 +107,10 @@ end
 function Player:set_rot(rot, set_flag)
     if rot == nil then return end
 
-    self.rot = {yaw = rot.yaw, pitch = rot.pitch}
+    self.rot = {x = rot.x, y = rot.y, z = rot.z}
 
     if self:is_chunk_loaded() then
-        player.set_rot(self.pid, rot.yaw, rot.pitch, 0)
+        player.set_rot(self.pid, rot.x, rot.y, rot.z)
         if set_flag then self.changed_flags.rot = true end
         self.pending_updates.rot = nil
     else
@@ -208,10 +208,10 @@ function Player:__check_pos()
 end
 
 function Player:__check_rot()
-    local yaw, pitch = player.get_rot(self.pid)
+    local x, y, z = player.get_rot(self.pid)
 
-    if self.rot.yaw ~= yaw or self.rot.pitch ~= pitch then
-        self.rot = {yaw = yaw, pitch = pitch}
+    if self.rot.x ~= x or self.rot.y ~= y or self.rot.z ~= z then
+        self.rot = {x = x, y = y, z = z}
         self.changed_flags.rot = true
     end
 end
