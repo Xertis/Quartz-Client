@@ -237,7 +237,7 @@ WrapSetFaces:
 WrapSetTints:
   fields:
     - id: var
-    - faces: Vec6<norm8>
+    - faces: Vec6<Vec3<norm8>>
 
 WrapHide:
   fields:

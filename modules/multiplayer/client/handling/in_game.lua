@@ -273,7 +273,6 @@ handlers[ protocol.ServerMsg.WrapSetTexture ] = function (server, packet)
 end
 
 handlers[ protocol.ServerMsg.WrapSetFaces ] = function (server, packet)
-    debug.print(packet)
     api_wraps.set_faces(packet.id, packet.faces)
 end
 
