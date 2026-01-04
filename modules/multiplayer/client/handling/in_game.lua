@@ -1,13 +1,13 @@
 local protocol = require "multiplayer/protocol-kernel/protocol"
 local Player = require "multiplayer/classes/player"
 
-local api_events = require "api/v1/events"
-local api_entities = require "api/v1/entities"
-local api_env = require "api/v1/env"
-local api_particles = require "api/v1/particles"
-local api_audio = require "api/v1/audio"
-local api_text3d = require "api/v1/text3d"
-local api_wraps = require "api/v1/wraps"
+local api_events = require "api/v2/events"
+local api_entities = require "api/v2/entities"
+local api_env = require "api/v2/env"
+local api_particles = require "api/v2/particles"
+local api_audio = require "api/v2/audio"
+local api_text3d = require "api/v2/text3d"
+local api_wraps = require "api/v2/wraps"
 
 local handlers = {}
 

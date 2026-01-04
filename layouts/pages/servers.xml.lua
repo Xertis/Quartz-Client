@@ -180,10 +180,15 @@ function connect(id)
                 friends_list = {},
                 next_state = protocol.States.Login
             }))
-            buffer:put_packet(protocol.build_packet("client", protocol.ClientMsg.JoinGame, {
+
+            local data = {
                 username = CONFIG.Account.name,
                 identity = CONFIG.Account.name
-            }))
+            }
+
+            events.emit("quartz:join_game", data)
+
+            buffer:put_packet(protocol.build_packet("client", protocol.ClientMsg.JoinGame, data))
             _server.network:send(buffer.bytes)
         end
     })
