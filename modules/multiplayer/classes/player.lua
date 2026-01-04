@@ -20,10 +20,14 @@ function Player.new(pid, name, pos, rot, cheats)
     self.slot = 0
     self.region = {x = 0, z = 0}
     self.pos = pos or {x = 0, y = -10, z = 0}
-    self.rot = rot or {yaw = 0, pitch = 0}
+    self.rot = rot or {x = 0, y = 0, z = 0}
     self.cheats = cheats or {noclip = false, flight = false}
     self.active = true
     self.hand_item = 0
+    self.infinite_items = player.is_infinite_items(pid)
+    self.instant_destruction = player.is_instant_destruction(pid)
+    self.interaction_distance = player.get_interaction_distance(pid)
+
     self.ping = {
         ping = -1,
         last_upd = 0
@@ -39,7 +43,10 @@ function Player.new(pid, name, pos, rot, cheats)
         cheats = false,
         inv = false,
         slot = false,
-        region = false
+        region = false,
+        infinite_items = false,
+        instant_destruction = false,
+        interaction_distance = false
     }
 
     max_id = max_id + 1
@@ -63,7 +70,7 @@ function Player:apply_pending_updates()
 
     if self.pending_updates.rot then
         local rot = self.pending_updates.rot
-        player.set_rot(self.pid, rot.yaw, rot.pitch, 0)
+        player.set_rot(self.pid, rot.x, rot.y, rot.z)
         self.pending_updates.rot = nil
         self.changed_flags.rot = true
     end
@@ -74,6 +81,72 @@ function Player:apply_pending_updates()
         player.set_noclip(self.pid, cheats.noclip)
         self.pending_updates.cheats = nil
         self.changed_flags.cheats = true
+    end
+
+    if self.pending_updates.infinite_items ~= nil then
+        local val = self.pending_updates.infinite_items
+        player.set_infinite_items(self.pid, val)
+        self.pending_updates.infinite_items = nil
+        self.changed_flags.infinite_items = true
+        self.infinite_items = val
+    end
+
+    if self.pending_updates.instant_destruction ~= nil then
+        local val = self.pending_updates.instant_destruction
+        player.set_instant_destruction(self.pid, val)
+        self.pending_updates.instant_destruction = nil
+        self.changed_flags.instant_destruction = true
+        self.instant_destruction = val
+    end
+
+    if self.pending_updates.interaction_distance ~= nil then
+        local val = self.pending_updates.interaction_distance
+        player.set_interaction_distance(self.pid, val)
+        self.pending_updates.interaction_distance = nil
+        self.changed_flags.interaction_distance = true
+        self.interaction_distance = val
+    end
+end
+
+function Player:set_infinite_items(val, set_flag)
+    if val == nil then return end
+
+    self.infinite_items = val
+
+    if self:is_chunk_loaded() then
+        player.set_infinite_items(self.pid, val)
+        if set_flag then self.changed_flags.infinite_items = true end
+        self.pending_updates.infinite_items = nil
+    else
+        self.pending_updates.infinite_items = val
+    end
+end
+
+function Player:set_instant_destruction(val, set_flag)
+    if val == nil then return end
+
+    self.instant_destruction = val
+
+    if self:is_chunk_loaded() then
+        player.set_instant_destruction(self.pid, val)
+        if set_flag then self.changed_flags.instant_destruction = true end
+        self.pending_updates.instant_destruction = nil
+    else
+        self.pending_updates.instant_destruction = val
+    end
+end
+
+function Player:set_interaction_distance(val, set_flag)
+    if val == nil then return end
+
+    self.interaction_distance = val
+
+    if self:is_chunk_loaded() then
+        player.set_interaction_distance(self.pid, val)
+        if set_flag then self.changed_flags.interaction_distance = true end
+        self.pending_updates.interaction_distance = nil
+    else
+        self.pending_updates.interaction_distance = val
     end
 end
 
@@ -107,10 +180,10 @@ end
 function Player:set_rot(rot, set_flag)
     if rot == nil then return end
 
-    self.rot = {yaw = rot.yaw, pitch = rot.pitch}
+    self.rot = {x = rot.x, y = rot.y, z = rot.z}
 
     if self:is_chunk_loaded() then
-        player.set_rot(self.pid, rot.yaw, rot.pitch, 0)
+        player.set_rot(self.pid, rot.x, rot.y, rot.z)
         if set_flag then self.changed_flags.rot = true end
         self.pending_updates.rot = nil
     else
@@ -177,6 +250,9 @@ function Player:tick()
         self:__check_pos()
         self:__check_rot()
         self:__check_cheats()
+        self:__check_infinite_items()
+        self:__check_instant_destruction()
+        self:__check_interaction_distance()
     end
 
     self:__check_inv()
@@ -187,10 +263,36 @@ function Player:is_active()
     return self.active
 end
 
-function Player:__check_pos()
-    if not CACHED_DATA.over then
-        return
+function Player:__check_infinite_items()
+    local val = player.is_infinite_items(self.pid)
+
+    if self.infinite_items ~= val then
+        self.infinite_items = val
+        self.changed_flags.infinite_items = true
     end
+end
+
+function Player:__check_instant_destruction()
+    local val = player.is_instant_destruction(self.pid)
+
+    if self.instant_destruction ~= val then
+        self.instant_destruction = val
+        self.changed_flags.instant_destruction = true
+    end
+end
+
+function Player:__check_interaction_distance()
+    local val = player.get_interaction_distance(self.pid)
+
+    if self.interaction_distance ~= val then
+        self.interaction_distance = val
+        self.changed_flags.interaction_distance = true
+    end
+end
+
+
+function Player:__check_pos()
+    if not CACHED_DATA.over then return end
 
     local x, y, z = player.get_pos(self.pid)
     if math.euclidian3D(self.pos.x, self.pos.y, self.pos.z, x, y, z) > 0.05 then
@@ -208,10 +310,10 @@ function Player:__check_pos()
 end
 
 function Player:__check_rot()
-    local yaw, pitch = player.get_rot(self.pid)
+    local x, y, z = player.get_rot(self.pid)
 
-    if self.rot.yaw ~= yaw or self.rot.pitch ~= pitch then
-        self.rot = {yaw = yaw, pitch = pitch}
+    if self.rot.x ~= x or self.rot.y ~= y or self.rot.z ~= z then
+        self.rot = {x = x, y = y, z = z}
         self.changed_flags.rot = true
     end
 end

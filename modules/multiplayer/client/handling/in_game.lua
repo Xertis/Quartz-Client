@@ -1,13 +1,13 @@
 local protocol = require "multiplayer/protocol-kernel/protocol"
 local Player = require "multiplayer/classes/player"
 
-local api_events = require "api/v1/events"
-local api_entities = require "api/v1/entities"
-local api_env = require "api/v1/env"
-local api_particles = require "api/v1/particles"
-local api_audio = require "api/v1/audio"
-local api_text3d = require "api/v1/text3d"
-local api_wraps = require "api/v1/wraps"
+local api_events = require "api/v2/events"
+local api_entities = require "api/v2/entities"
+local api_env = require "api/v2/env"
+local api_particles = require "api/v2/particles"
+local api_audio = require "api/v2/audio"
+local api_text3d = require "api/v2/text3d"
+local api_wraps = require "api/v2/wraps"
 
 local handlers = {}
 
@@ -26,11 +26,13 @@ local function set_player_spawn_pos()
 end
 
 handlers[protocol.ServerMsg.ChunkData] = function (server, packet)
-    world.set_chunk_data(packet.x, packet.z, packet.data)
+    local chunk = packet.chunk
+
+    world.set_chunk_data(chunk.x, chunk.z, chunk.data)
     local pos = CACHED_DATA.pos
     if not CACHED_DATA.over and pos then return end
 
-    if math.floor(pos.x / 16) == packet.x and math.floor(pos.z / 16) == packet.z then
+    if math.floor(pos.x / 16) == chunk.x and math.floor(pos.z / 16) == chunk.z then
         CACHED_DATA.over = true
         set_player_spawn_pos()
     end
@@ -38,10 +40,10 @@ end
 
 handlers[protocol.ServerMsg.ChunksData] = function (server, packet)
     for _, chunk in ipairs(packet.list) do
-        world.set_chunk_data(chunk[1], chunk[2], chunk[3])
+        world.set_chunk_data(chunk.x, chunk.z, chunk.data)
         local pos = CACHED_DATA.pos
         if pos and not CACHED_DATA.over then
-            if math.floor(pos.x / 16) == chunk[1] and math.floor(pos.z / 16) == chunk[2] then
+            if math.floor(pos.x / 16) == chunk.x and math.floor(pos.z / 16) == chunk.z then
                 CACHED_DATA.over = true
                 set_player_spawn_pos()
             end
@@ -51,10 +53,12 @@ end
 
 handlers[protocol.ServerMsg.BlockChanged] = function (server, packet)
     local pid = packet.pid
+    local block_data = packet.block
+    local block_pos = block_data.pos
     if pid == 0 then pid = -1 end
 
-    local old_id = block.get(packet.x, packet.y, packet.z)
-    local new_id = packet.block_id
+    local old_id = block.get(block_pos.x, block_pos.y, block_pos.z)
+    local new_id = block_data.id
 
     --[[TODO: Проверка эта нужна, 
         но хз как она повлияет на код, по идее если чанк не загружен, то он его загрузит
@@ -64,14 +68,14 @@ handlers[protocol.ServerMsg.BlockChanged] = function (server, packet)
 
     if pid ~= -1 and pid ~= CLIENT_PLAYER.pid then
         if old_id ~= 0 and new_id == 0 then
-            block.destruct(packet.x, packet.y, packet.z, pid)
+            block.destruct(block_pos.x, block_pos.y, block_pos.z, pid)
             return
         elseif old_id == 0 and new_id ~= 0 then
-            block.place(packet.x, packet.y, packet.z, new_id, packet.block_state, pid)
+            block.place(block_pos.x, block_pos.y, block_pos.z, new_id, block_data.state, pid)
             return
         end
     end
-    block.set(packet.x, packet.y, packet.z, packet.block_id, packet.block_state, pid)
+    block.set(block_pos.x, block_pos.y, block_pos.z, new_id, block_data.state, pid)
 end
 
 handlers[protocol.ServerMsg.TimeUpdate] = function (server, packet)
@@ -85,24 +89,30 @@ handlers[protocol.ServerMsg.ChatMessage] = function (server, packet)
     console.chat(packet.message)
 end
 
-handlers[protocol.ServerMsg.SynchronizePlayerPosition] = function (server, packet)
+handlers[protocol.ServerMsg.SynchronizePlayer] = function (server, packet)
     local player_data = packet.data
 
     CLIENT_PLAYER:set_pos(player_data.pos, false)
     CLIENT_PLAYER:set_rot(player_data.rot, false)
     CLIENT_PLAYER:set_cheats(player_data.cheats, false)
+    CLIENT_PLAYER:set_infinite_items(player_data.infinite_items, false)
+    CLIENT_PLAYER:set_instant_destruction(player_data.instant_destruction, false)
+    CLIENT_PLAYER:set_interaction_distance(player_data.interaction_distance, false)
 
     if not CACHED_DATA.over then
         CACHED_DATA.pos = player_data.pos
         CACHED_DATA.rot = player_data.rot
         CACHED_DATA.cheats = player_data.cheats
+        CACHED_DATA.infinite_items = player_data.infinite_items
+        CACHED_DATA.instant_destruction = player_data.instant_destruction
+        CACHED_DATA.interaction_distance = player_data.interaction_distance
     end
 end
 
 handlers[protocol.ServerMsg.PlayerList] = function (server, packet)
     for _, _player in ipairs(packet.list) do
-        local pid = _player[1]
-        local name = _player[2]
+        local pid = _player.pid
+        local name = _player.username
         if CLIENT_PLAYER.pid ~= pid then
             player.create(name, pid)
             player.set_loading_chunks(pid, false)
@@ -112,16 +122,16 @@ handlers[protocol.ServerMsg.PlayerList] = function (server, packet)
 end
 
 handlers[protocol.ServerMsg.PlayerListRemove] = function (server, packet)
-    local player = PLAYER_LIST[packet.entity_id]
+    local player = PLAYER_LIST[packet.data.pid]
     if player then
         player:despawn()
-        PLAYER_LIST[packet.entity_id] = nil
+        PLAYER_LIST[packet.data.pid] = nil
     end
 end
 
 handlers[protocol.ServerMsg.PlayerListAdd] = function (server, packet)
-    local pid = packet.entity_id
-    local name = packet.username
+    local pid = packet.data.pid
+    local name = packet.data.username
     if CLIENT_PLAYER.pid ~= pid and not PLAYER_LIST[pid] then
         player.create(name, pid)
         player.set_loading_chunks(pid, false)
@@ -130,23 +140,23 @@ handlers[protocol.ServerMsg.PlayerListAdd] = function (server, packet)
         local data = TEMP_PLAYERS[pid]
         if data then
             TEMP_PLAYERS[pid] = nil
-            handlers[protocol.ServerMsg.PlayerMoved](server, {
-                entity_id = pid,
+            handlers[ protocol.ServerMsg.PlayerMoved ](server, {
+                pid = pid,
                 data = data
             })
         end
     end
 end
 
-handlers[protocol.ServerMsg.PlayerMoved] = function (server, packet)
-    local player = PLAYER_LIST[packet.entity_id]
+handlers[ protocol.ServerMsg.PlayerMoved ] = function (server, packet)
+    local player = PLAYER_LIST[packet.pid]
 
     if not player then
-        TEMP_PLAYERS[packet.entity_id] = packet.data
+        TEMP_PLAYERS[packet.pid] = packet.data
         return
     end
 
-    if packet.entity_id == CLIENT_PLAYER.entity_id then return end
+    if packet.pid == CLIENT_PLAYER.pid then return end
 
     local data = packet.data
 
@@ -166,20 +176,27 @@ handlers[protocol.ServerMsg.PlayerMoved] = function (server, packet)
     player:set_cheats(data.cheats)
 end
 
-handlers[protocol.ServerMsg.KeepAlive] = function (server, packet)
+handlers[ protocol.ServerMsg.KeepAlive ] = function (server, packet)
     CLIENT_PLAYER.ping.last_upd = time.uptime()
 
-    server:push_packet(protocol.ClientMsg.KeepAlive, packet.challenge)
+    server:push_packet(protocol.ClientMsg.KeepAlive, {packet.challenge})
 end
 
-handlers[protocol.ServerMsg.PlayerInventory] = function (server, packet)
+handlers[ protocol.ServerMsg.PlayerInventory ] = function (server, packet)
     CLIENT_PLAYER:set_inventory(packet.inventory, false)
     CACHED_DATA.inv = packet.inventory
 end
 
-handlers[protocol.ServerMsg.PlayerHandSlot] = function (server, packet)
+handlers[ protocol.ServerMsg.PlayerHandSlot ] = function (server, packet)
     player.set_selected_slot(hud.get_player(), packet.slot)
     CACHED_DATA.slot = packet.slot
+end
+
+handlers[ protocol.ServerMsg.PlayerUsername ] = function (server, packet)
+    local player_obj = packet.pid ~= CLIENT_PLAYER.pid and PLAYER_LIST[packet.pid] or CLIENT_PLAYER
+
+    player.set_name(packet.pid, packet.username)
+    player_obj.name = packet.username
 end
 
 handlers[ protocol.ServerMsg.PackEvent ] = function (server, packet)
@@ -208,7 +225,7 @@ handlers[ protocol.ServerMsg.PlayerFieldsUpdate ] = function (server, packet)
 end
 
 handlers[ protocol.ServerMsg.EntityUpdate ] = function (server, packet)
-    api_entities.__emit__(packet.uid, packet.entity_def, packet.dirty)
+    api_entities.__emit__(packet.uid, packet.def, packet.dirty)
 end
 
 handlers[ protocol.ServerMsg.EntityDespawn ] = function (server, packet)
@@ -255,6 +272,15 @@ handlers[ protocol.ServerMsg.WrapSetTexture ] = function (server, packet)
     api_wraps.set_texture(packet.id, packet.texture)
 end
 
+handlers[ protocol.ServerMsg.WrapSetFaces ] = function (server, packet)
+    api_wraps.set_faces(packet.id, packet.faces)
+end
+
+handlers[ protocol.ServerMsg.WrapSetTints ] = function (server, packet)
+    api_wraps.set_tints(packet.id, packet.faces)
+end
+
+
 handlers[ protocol.ServerMsg.Text3DShow ] = function (server, packet)
     api_text3d.show(packet.data)
 end
@@ -282,12 +308,12 @@ handlers[ protocol.ServerMsg.Text3DAxis ] = function (server, packet)
 end
 
 handlers[ protocol.ServerMsg.BlockInventory ] = function (server, packet)
-    local invid = inventory.get_block(packet.x, packet.y, packet.z)
+    local invid = inventory.get_block(packet.pos.x, packet.pos.y, packet.pos.z)
     inventory.set_inv(invid, packet.inventory)
 end
 
 handlers[ protocol.ServerMsg.BlockInventorySlot ] = function (server, packet)
-    local invid = inventory.get_block(packet.x, packet.y, packet.z)
+    local invid = inventory.get_block(packet.pos.x, packet.pos.y, packet.pos.z)
     inventory.set(invid, packet.slot_id, packet.item_id, packet.item_count)
 end
 
