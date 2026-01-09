@@ -1,6 +1,7 @@
 local Network = require "lib/network/network"
 local socketlib = require "lib/network/socketlib"
 local Server = require "multiplayer/classes/server"
+local protocol = require "multiplayer/protocol-kernel/protocol"
 local Client_pipe = require "multiplayer/client/client_pipe"
 
 local Client = {}
@@ -62,6 +63,7 @@ function Client:disconnect()
     for i=#self.servers, 1, -1 do
         local server = self.servers[i]
         local socket = server.network.socket
+        server:push_packet(protocol.ClientMsg.Disconnect, {})
         if socket and socket:is_alive() then
             if server.active then
                 server.active = false
