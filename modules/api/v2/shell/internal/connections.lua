@@ -1,33 +1,25 @@
 local protocol = start_require "multiplayer/protocol-kernel/protocol"
-local data = require "api/v2/launcher/data"
 
 local module = {}
-
-local launcher_handlers = {}
-
---[[
-join_success - при подключении к серверу (в мир)
-]]
-function module.set_handlers(handlers)
-    table.merge(launcher_handlers, handlers)
-end
 
 function module.get_count()
     return table.count_pairs(CLIENT.servers)
 end
 
-function module.get_status(ip, id, on_get_info, on_disconnect)
+function module.get_status(ip, id, name, on_status, on_disconnect, friends_list)
     local address, port = string.split_ip(ip)
+    friends_list = friends_list or {}
 
-    CLIENT:connect(address, port, nil, id, {
-        on_get_info = on_get_info,
-        on_disconnect = on_disconnect
+    CLIENT:connect(address, port, name, nil, id, {
+        on_status = on_status,
+        on_disconnect = on_disconnect,
+        friends_list = friends_list
     })
 end
 
-function module.join(ip, id, username, on_connect, on_disconnect)
+function module.join(ip, id, identity, username, on_connect, on_disconnect)
     local address, port = string.split_ip(ip)
-    CLIENT:connect(address, port, protocol.States.Login, id, {
+    CLIENT:connect(address, port, "main", protocol.States.Login, id, {
         on_connect = function (server)
             on_connect(server)
             local buffer = protocol.create_databuffer()
@@ -45,7 +37,8 @@ function module.join(ip, id, username, on_connect, on_disconnect)
                 next_state = protocol.States.Login
             }))
 
-            local identity = data.get_identity(username) or username
+            identity = SHELL.module.states.get_identity() or identity
+            username = SHELL.module.states.get_username() or username
 
             buffer:put_packet(protocol.build_packet("client", protocol.ClientMsg.JoinGame, {
                 username = username,
@@ -73,10 +66,6 @@ function module.disconnect(server)
     else
         CLIENT:disconnect()
     end
-end
-
-function module.__join_success(server)
-    launcher_handlers.join_success(server)
 end
 
 return module

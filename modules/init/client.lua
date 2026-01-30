@@ -12,31 +12,41 @@ local function prepare_app(app)
     protect_app.reset_content = function ()
         local unresetable = {"client"}
 
-        if LAUNCHER_PACK then
-            unresetable = {"client", LAUNCHER_PACK}
+        if SHELL then
+            unresetable = {"client", SHELL.prefix}
         end
 
+        debug.print(unresetable)
         app.reset_content(unresetable)
     end
 
     _G["external_app"] = protect_app
 end
 
-return function(app, after_init)
-    after_init = after_init or function () end
-    prepare_app(app)
+local function prepare_pause(pause_menu)
+    gui_util.add_page_dispatcher(function(name, args)
+        if name == "pause" then
+            name = pause_menu
+        end
 
-    require "client:constants"
-    require "client:globals"
-    require "client:std/stdboot"
-    require "client:std/stdmin"
+        return name, args
+    end)
+end
+
+return function(app)
+    local post_init = SHELL.module.init or function () end
+    prepare_app(app)
+    prepare_pause(SHELL.config.layouts.pause)
+
+    table.insert_unique(CONTENT_PACKS, SHELL.prefix)
+
     local Client = require "client:multiplayer/client/client"
 
     local client = Client.new()
 
     _G["/$p"] = table.copy(package.loaded)
 
-    after_init()
+    post_init()
 
     local function main()
         while true do

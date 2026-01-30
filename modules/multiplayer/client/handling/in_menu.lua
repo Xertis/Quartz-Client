@@ -15,7 +15,7 @@ handlers["handshake"] = function (server)
             protocol_version = protocol.Version,
             engine_version = engine_version,
             api_version = API_VERSION,
-            friends_list = CONFIG.Account.friends,
+            friends_list = server.meta.friends_list,
             next_state = protocol.States.Status
         }))
         buffer:put_packet(protocol.build_packet("client", protocol.ClientMsg.StatusRequest, {}))
@@ -28,15 +28,11 @@ end
 
 handlers[protocol.ServerMsg.StatusResponse] = function (server, packet)
     server.meta.max_online = packet.max
-    server.handlers.on_get_info(server, packet)
+    server.meta.on_status(server, packet)
 end
 
 handlers[protocol.ServerMsg.Disconnect] = function (server, packet)
-    menu:reset()
-    menu.page = "client_connection"
-    local document = Document.new("client:pages/client_connection")
-
-    document.info.text = packet.reason or "Unexpected disconnection"
+    SHELL.module.handlers.game.on_disconnect(packet)
     CLIENT:disconnect()
 end
 
@@ -82,6 +78,7 @@ handlers[protocol.ServerMsg.JoinSuccess] = function (server, packet)
     SERVER = server
 
     external_app.reset_content()
+    debug.print(CONTENT_PACKS)
     external_app.config_packs(CONTENT_PACKS)
 
     external_app.new_world("", "41530140565755", PACK_ID .. ":void", packet.pid)
@@ -92,7 +89,9 @@ handlers[protocol.ServerMsg.JoinSuccess] = function (server, packet)
         rules.set(rule[1], rule[2])
     end
 
-    CLIENT_PLAYER = Player.new(packet.pid, CONFIG.Account.name)
+    CLIENT_PLAYER = Player.new(packet.pid, SHELL.module.states.get_username())
+
+    SHELL.module.handlers.game.join(server)
 end
 
 return handlers

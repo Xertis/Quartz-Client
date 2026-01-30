@@ -1,5 +1,4 @@
 local Network = require "lib/network/network"
-local socketlib = require "lib/network/socketlib"
 local Server = require "multiplayer/classes/server"
 local protocol = require "multiplayer/protocol-kernel/protocol"
 local Client_pipe = require "multiplayer/client/client_pipe"
@@ -19,23 +18,26 @@ function Client.new()
     return self
 end
 
-function Client:connect(address, port, state, id, handlers)
-    local server = Server.new(false, nil, address, port)
-    self.socket = socketlib.connect(address, tonumber(port), function (socket)
+function Client:connect(address, port, name, state, id, meta)
+    local server = Server.new(false, nil, address, port, name)
+    self.socket = network.tcp_connect(address, tonumber(port), function (socket)
         local network = Network.new(socket)
         server:set("network", network)
         server.connecting = false
         server.state = state or -1
         socket:set_nodelay(true)
 
-        if handlers.on_connect then
-            handlers.on_connect(server)
+        if meta.on_connect then
+            meta.on_connect(server)
         end
-    end, function ()
+    end, function (_, err)
         server.connecting = false
+        if meta.on_disconnect then
+            meta.on_disconnect(server, err)
+        end
     end)
 
-    server.handlers = handlers
+    table.merge(server.meta, meta)
     server.network = {}
 
     if id then
@@ -96,12 +98,12 @@ function Client:tick()
 
             if server.id == global_server.id then
                 if world.is_open() then
-                    leave_to_menu()
+                    SHELL.module.handlers.game.on_disconnect()
                 end
             end
 
-            if server.handlers.on_disconnect then
-                server.handlers.on_disconnect(server)
+            if server.meta.on_disconnect then
+                server.meta.on_disconnect(server)
             end
 
             table.remove_value(self.servers, server)

@@ -1,8 +1,5 @@
-CONFIG = {}
-
 PACK_ID = "client"
-CONFIG_PATH = pack.shared_file(PACK_ID, "config.json")
-LAUNCHER_PACK = nil
+SHELL = nil
 
 CHUNK_LOADING_DISTANCE = 0
 
