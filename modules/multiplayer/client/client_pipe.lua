@@ -8,17 +8,21 @@ local server_pipe = require "multiplayer/sending/server_pipe"
 local Pipeline = require "lib/common/pipeline"
 local List = require "lib/common/list"
 
+local receiver = require "multiplayer/protocol-kernel/receiver"
+
 local ClientPipe = Pipeline.new()
 
 ClientPipe:add_middleware(function(server)
     local co = server.meta.recieve_co
     if not co then
+        server.meta.buffer = receiver.create_buffer()
         co = coroutine.create(function()
+            local buffer = server.meta.buffer
             while true do
                 local received_any = false
                 while true do
                     local success, packet = pcall(function()
-                        return protocol.parse_packet("server", function (len) return server.network:recieve_bytes(len) end)
+                        return protocol.parse_packet("server", buffer)
                     end)
 
                     if success and packet then
@@ -39,6 +43,8 @@ ClientPipe:add_middleware(function(server)
         end)
         server.meta.recieve_co = co
     end
+
+    receiver.recv(server.meta.buffer, server)
 
     coroutine.resume(co)
     return server

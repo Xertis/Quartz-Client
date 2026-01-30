@@ -1,6 +1,7 @@
 
 local bit_buffer = require "lib/files/bit_buffer"
 local kernel = require "multiplayer/protocol-kernel/kernel"
+local receiver = require "multiplayer/protocol-kernel/receiver"
 local protocol = {}
 
 logger.log("Initializing protocol...")
@@ -50,18 +51,11 @@ function protocol.build_packet(client_or_server, packet_type, data)
     return buffer.bytes
 end
 
-function protocol.parse_packet(client_or_server, data)
+function protocol.parse_packet(client_or_server, external_buffer)
     local result = {}
-    local buffer = nil
-
-    if type(data) ~= "function" then
-        buffer = protocol.create_databuffer()
-        buffer:put_bytes(data)
-        buffer:reset()
-    else
-        buffer = protocol.create_databuffer()
-        buffer.receive_func = data
-    end
+    local buffer = protocol.create_databuffer()
+    buffer.external_buffer = external_buffer
+    buffer.recv_func = receiver.get
 
     local packet_type = buffer:get_byte()
 
@@ -82,6 +76,9 @@ function protocol.parse_packet(client_or_server, data)
         logger.log(table.tostring(data), 'E', true)
         return {}
     end
+
+    local consumed = math.ceil((buffer.pos - 1) / 8)
+    receiver.clear(external_buffer, consumed)
 
     table.merge(result, res)
     result.packet_type = packet_type
